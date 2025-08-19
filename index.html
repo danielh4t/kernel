@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Kernel Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: #000;
+            color: #0f0;
+            font-family: 'Fira Code', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #terminal {
+            width: 90%;
+            height: 90%;
+            max-width: 1200px;
+            padding: 10px 10px 30px 10px;
+        }
+        
+        @media (max-width: 768px) {
+            body, html {
+                height: 100vh;
+                height: 100dvh; /* Dynamic viewport height for mobile */
+                overflow: hidden;
+                position: fixed;
+                width: 100%;
+            }
+            
+            #terminal {
+                width: 100%;
+                height: 100%;
+                padding: 8px 8px 40px 8px;
+                position: fixed;
+                top: 0;
+                left: 0;
+            }
+            
+            .xterm {
+                font-size: 12px !important;
+            }
+            
+            .xterm .xterm-viewport {
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none; /* IE and Edge */
+            }
+            
+            .xterm .xterm-viewport::-webkit-scrollbar {
+                display: none; /* Chrome, Safari, Opera */
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #terminal {
+                padding: 4px 4px 30px 4px;
+            }
+            
+            .xterm {
+                font-size: 11px !important;
+                line-height: 1.2 !important;
+            }
+        }
+        
+
+        .xterm {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .xterm-viewport {
+            overflow: hidden !important;
+        }
+
+        .xterm-scroll-area {
+            visibility: hidden !important;
+        }
+        
+        /* Screen reader support */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="terminal" role="application" aria-label="Life Kernel Terminal - Interactive Article"></div>
+    <div class="sr-only" aria-live="polite" id="screen-reader-output"></div>
+    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+    <script>
+        const term = new Terminal({ 
+            cursorBlink: true, 
+            theme: { background: '#000000', foreground: '#00ff00' },
+            allowTransparency: true,
+            fontSize: window.innerWidth <= 768 ? (window.innerWidth <= 480 ? 11 : 12) : 14,
+            lineHeight: window.innerWidth <= 480 ? 1.2 : 1.4,
+            scrollback: 1000,
+            disableStdin: false
+        });
+        term.open(document.getElementById('terminal'));
+        
+        // Mobile viewport handling
+        function handleViewportChange() {
+            if (window.innerWidth <= 768) {
+                // Force resize on mobile
+                setTimeout(() => {
+                    term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 7 : 8)), 
+                               Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 14 : 16)));
+                }, 100);
+            }
+        }
+        
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(handleViewportChange, 500);
+        });
+        
+        // Prevent zoom on double tap for mobile
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        
+        // Prevent pull-to-refresh
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        let currentInput = '';
+        let gameState = 'intro';
+        let systemHealth = {
+            cognitive: 30,
+            social: 45,
+            financial: 25,
+            overall: 33
+        };
+        
+        let commandHistory = [];
+        let historyIndex = -1;
+        const availableCommands = ['patch', 'ignore', 'status', 'help', 'clear', 'reset', 'ls', 'ps', 'top', 'cat'];
+        
+        // Save state functionality
+        function saveState() {
+            const state = {
+                gameState,
+                systemHealth,
+                commandHistory
+            };
+            localStorage.setItem('lifeKernelState', JSON.stringify(state));
+        }
+        
+        function loadState() {
+            const saved = localStorage.getItem('lifeKernelState');
+            if (saved) {
+                const state = JSON.parse(saved);
+                gameState = state.gameState || 'intro';
+                systemHealth = state.systemHealth || systemHealth;
+                commandHistory = state.commandHistory || [];
+            }
+        }
+        
+        function resetState() {
+            localStorage.removeItem('lifeKernelState');
+            gameState = 'intro';
+            systemHealth = {
+                cognitive: 30,
+                social: 45,
+                financial: 25,
+                overall: 33
+            };
+            commandHistory = [];
+            historyIndex = -1;
+            currentInput = '';
+        }
+
+
+        const narrativeContent = {
+            intro: [
+                "=== LIFE ON AN OUTDATED KERNEL ===",
+                "",
+                "Sometimes life feels like running Linux on an outdated kernel.",
+                "The scripts we once relied on now throw warnings at startup;",
+                "configurations that ran smoothly for generations no longer fit today’s hardware.",
+                "",
+                "[life-os] booting LifeKernel.v1...",
+                "[life-os] warning: single-income module deprecated",
+                "[life-os] warning: housing_costs > income_limit",
+                "[life-os] init: social_support_daemon not responding",
+                "",
+                "This mismatch fuels cognitive dissonance and alienation.",
+                "They insist the old script should still work — just hustle harder.",
+                " but technical debt piles up: climate change, globalization, civil issues",
+                " and AI rewrites assumptions overnight including my code.",
+                "Eventually the system throws a kernel panic: burnout, breakdown, or erosion of belonging.",
+                "",
+                "[life-os] ERROR: CognitiveDissonance detected",
+                "[life-os] ALERT: AlienationProcess consuming 87% CPU",
+                "[life-os] PANIC: Script.v1 failed; initiating emergency_recovery()",
+                "",
+                "Even daily routines raise exceptions:",
+                "",
+                "[life-os] WARNING: WorkModule overloaded, output < expected",
+                "[life-os] INFO: SociaLifeModule delayed by 3 cycles",
+                "[life-os] ERROR: SleepSubsystem starved",
+                "",
+                "The truth is: nothing is inherently wrong with *you*.",
+                "What is wrong is the kernel version and programs. Identity-anchoring tasks that are deprecated,",
+                "Broken habits, community ties, social media bubbles, news, wars, food and work.",
+                "The hardware and environment shifts are not all bad — they can free human time.",
+                "Your programs is running on a kernel that no longer matches the system.",
+                "",
+                "Available commands: patch, ignore, status, help",
+                ""
+            ]
+
+        };
+
+        function displayContent(lines, callback)
+        {
+            let lineIndex = 0;
+
+            function showNextLine()
+            {
+                if (lineIndex >= lines.length)
+                {
+                    callback();
+                    return;
+                }
+
+                const currentLine = lines[lineIndex];
+
+                if (currentLine.includes('[life-os]'))
+                {
+                    // Typewriter effect for system logs - slower speed
+                    typewriterLine(currentLine, () =>
+                    {
+                        term.writeln('');
+                        lineIndex++;
+                        setTimeout(showNextLine, 100);
+                    });
+                } else
+                {
+                    // Instant display for regular text paragraphs - white color
+                    if (currentLine.trim() === '')
+                    {
+                        term.writeln('');
+                    } else
+                    {
+                        term.write('\x1b[37m'); // Set to white
+                        term.writeln(currentLine);
+                        term.write('\x1b[32m'); // Reset to green
+                    }
+                    lineIndex++;
+                    setTimeout(showNextLine, 100);
+                }
+            }
+
+            showNextLine();
+        }
+
+        function typewriterLine(line, callback)
+        {
+            let charIndex = 0;
+
+            function typeNextChar()
+            {
+                if (charIndex >= line.length)
+                {
+                    callback();
+                    return;
+                }
+
+                term.write('\x1b[32m'); // Ensure green for [life-os] lines
+                term.write(line[charIndex]);
+                charIndex++;
+                setTimeout(typeNextChar, 50); // Slower typing speed
+            }
+
+            typeNextChar();
+        }
+
+        function showPrompt()
+        {
+            term.write('\r\n> ');
+            currentInput = '';
+        }
+
+        function displaySystemStatus()
+        {
+            const statusLines = [
+                "",
+                "[life-os] === SYSTEM STATUS ===",
+                `[life-os] CognitiveHealth: ${systemHealth.cognitive}% ${systemHealth.cognitive < 40 ? '(CRITICAL)' : systemHealth.cognitive < 70 ? '(WARNING)' : '(OK)'}`,
+                `[life-os] SocialConnections: ${systemHealth.social}% ${systemHealth.social < 40 ? '(CRITICAL)' : systemHealth.social < 70 ? '(WARNING)' : '(OK)'}`,
+                `[life-os] FinancialStability: ${systemHealth.financial}% ${systemHealth.financial < 40 ? '(CRITICAL)' : systemHealth.financial < 70 ? '(WARNING)' : '(OK)'}`,
+                `[life-os] OverallSystem: ${systemHealth.overall}% ${systemHealth.overall < 40 ? '(FAILING)' : systemHealth.overall < 70 ? '(DEGRADED)' : '(HEALTHY)'}`,
+                "",
+                "[life-os] Recent errors in /var/log/life.log:",
+                "[life-os]   - BurnoutException in WorkModule (recurring)",
+                "[life-os]   - TimeoutError in SelfCareRoutine",
+                "[life-os]   - ResourceExhaustedException in MotivationSubsystem",
+                ""
+            ];
+
+            displayContent(statusLines, showPrompt);
+        }
+
+        function showHelp()
+        {
+            const helpLines = [
+                "",
+                "[life-os] === AVAILABLE COMMANDS ===",
+                "",
+                "patch     → Start kernel upgrade to LifeKernel.v2 (recommended path)",
+                "ignore    → Continue with current system (risk kernel panic)",
+                "status    → Check current system health and error logs",
+                "help      → Display this help message",
+                "clear     → Clear the terminal screen",
+                "save      → Manually save current state",
+                "reset     → Reset article to beginning and clear all state",
+                "ls        → List directory contents",
+                "ps        → Show running processes",
+                "top       → Display system resource usage",
+                "cat       → Display file contents (try: cat life_goals.txt)",
+                "",
+                "[life-os] === NAVIGATION ===",
+                "Use ↑/↓ arrows for command history",
+                "Use Tab for command completion",
+                "",
+                "[life-os] Pro tip: Life constantly evolves.",
+                "[life-os] There is a difference between knowing the path and walking the path.",
+                ""
+            ];
+
+            displayContent(helpLines, showPrompt);
+        }
+
+        function showProgressBar(percent)
+        {
+            const width = 20;
+            const filled = Math.floor((percent / 100) * width);
+            const empty = width - filled;
+            return '[' + '#'.repeat(filled) + ' '.repeat(empty) + '] ' + percent + '%';
+        }
+
+        function animateProgressBar(callback, duration = 3000)
+        {
+            let progress = 0;
+            const interval = duration / 100;
+
+            const progressTimer = setInterval(() =>
+            {
+                progress += Math.random() * 8 + 2; // Random increment 2-10%
+                if (progress > 100) progress = 100;
+
+                // Clear current line and show progress
+                term.write('\r\x1b[K'); // Clear line
+                term.write('\x1b[32m[life-os] ' + showProgressBar(Math.floor(progress)));
+
+                if (progress >= 100)
+                {
+                    clearInterval(progressTimer);
+                    term.writeln('');
+                    setTimeout(callback, 300);
+                }
+            }, interval);
+        }
+
+        function executePatch()
+        {
+            gameState = 'patching';
+
+            const initialLines = [
+                "",
+                "[life-os] Initiating system upgrade...",
+                "[life-os] audit --module=assumptions",
+                "[life-os]   → Found 23 deprecated assumptions",
+                "[life-os]   → Flagging single-income dependency",
+                ""
+            ];
+
+            const patchSteps = [
+                {
+                    text: "[life-os] patch --module=side_gigs",
+                    subtext: "[life-os]   → Installing income_diversification.v2.1"
+                },
+                {
+                    text: "[life-os] patch --module=community_support",
+                    subtext: "[life-os]   → Rebuilding social_network_driver"
+                },
+                {
+                    text: "[life-os] patch --module=skill_upgrade",
+                    subtext: "[life-os]   → Installing adaptability_framework.v3.0"
+                }
+            ];
+
+            const finalLines = [
+                "",
+                "[life-os] run --staged_canaries",
+                "[life-os]   → Testing new configurations...",
+                "[life-os]   → All canaries reporting OK",
+                "[life-os] monitor --logs mental, financial, social",
+                "[life-os]   → CognitiveHealth: 30% → 75% (IMPROVED)",
+                "[life-os]   → SocialConnections: 45% → 82% (HEALTHY)",
+                "[life-os]   → FinancialStability: 25% → 68% (STABLE)",
+                "",
+                "[life-os] INFO: LifeKernel.v2 boot successful",
+                "[life-os] Your system is now running optimized modules.",
+                "[life-os] Remember: incremental updates prevent major crashes.",
+                "",
+                "That means reskilling, diversifying income, building social infrastructure, and sharing load.",
+                "It means designing life-systems that accept instability as a parameter",
+                "safety nets, flexible careers, and community-first defaults replace the old brittle single-threaded scripts",
+                "Life requires maintenance to handle whatever the system throws at you.",
+                "",
+                "=== UPGRADE COMPLETE ===",
+                ""
+            ];
+
+            systemHealth = { cognitive: 75, social: 82, financial: 68, overall: 75 };
+
+            // Show initial lines
+            displayContent(initialLines, () =>
+            {
+                let stepIndex = 0;
+
+                function processNextStep()
+                {
+                    if (stepIndex >= patchSteps.length)
+                    {
+                        // All steps done, show final lines
+                        displayContent(finalLines, () =>
+                        {
+                            gameState = 'ready';
+                            term.write('\x1b[37m');
+                            term.writeln("Type 'status' to see your improved system, or 'help' for options.");
+                            term.write('\x1b[32m');
+                            showPrompt();
+                        });
+                        return;
+                    }
+
+                    const step = patchSteps[stepIndex];
+                    term.writeln(step.text);
+                    term.writeln(step.subtext);
+
+                    // Show progress bar for this step
+                    animateProgressBar(() =>
+                    {
+                        term.writeln('[life-os]   → Installation complete');
+                        term.writeln('');
+                        stepIndex++;
+                        setTimeout(processNextStep, 500);
+                    });
+                }
+
+                processNextStep();
+            });
+        }
+
+        function executeIgnore()
+        {
+            gameState = 'ignoring';
+            const ignoreLines = [
+                "",
+                "[life-os] Ignoring system warnings...",
+                "[life-os] WARNING: Proceeding with LifeKernel.v1 (unsupported)",
+                "",
+                "[life-os] ERROR: WorkModule crashed (exit code 1)",
+                "[life-os] ERROR: SleepSubsystem critical failure",
+                "[life-os] ALERT: StressLevel exceeding safe limits",
+                "[life-os] WARNING: RelationshipModule experiencing timeouts",
+                "[life-os] PANIC: Multiple subsystem failures detected",
+                "[life-os] FATAL: Kernel panic - system halted",
+                "",
+                "Your old scripts couldn’t keep up with the new environment.",
+                "Without updates, systems fail — sometimes with updates.",
+                "[life-os] FalconSensor",
+                "",
+                "[life-os] Recovery options available:",
+                "[life-os] → Type 'patch' to attempt emergency recovery",
+                ""
+            ];
+
+            systemHealth = { cognitive: 15, social: 20, financial: 10, overall: 15 };
+
+            displayContent(ignoreLines, () => {
+                gameState = 'ready';
+                showPrompt();
+            });
+        }
+
+        function handleCommand(cmd)
+        {
+            term.writeln('');
+            
+            // Add to command history if not empty
+            if (cmd.trim() && cmd.trim() !== commandHistory[commandHistory.length - 1]) {
+                commandHistory.push(cmd.trim());
+                if (commandHistory.length > 50) {
+                    commandHistory.shift(); // Keep only last 50 commands
+                }
+            }
+            historyIndex = -1;
+            
+            // State validation - only block during active animations
+            if (gameState === 'patching' || gameState === 'ignoring' || gameState === 'resetting') {
+                term.writeln("[life-os] Please wait for current operation to complete...");
+                setTimeout(showPrompt, 1000);
+                return;
+            }
+            
+            // Ensure we're in ready state for commands
+            if (gameState !== 'ready') {
+                gameState = 'ready';
+            }
+
+            const firstWord = cmd.toLowerCase().trim().split(/\s+/)[0];
+            
+            switch (firstWord)
+            {
+                case 'patch':
+                    executePatch();
+                    break;
+                case 'ignore':
+                    executeIgnore();
+                    break;
+                case 'status':
+                    displaySystemStatus();
+                    break;
+                case 'help':
+                    showHelp();
+                    break;
+                case 'clear':
+                    term.clear();
+                    showPrompt();
+                    break;
+                case 'ls':
+                    showEasterEggLS();
+                    break;
+                case 'ps':
+                    showEasterEggPS();
+                    break;
+                case 'top':
+                    showEasterEggTop();
+                    break;
+                case 'cat':
+                    handleCatCommand(cmd);
+                    break;
+                case 'save':
+                    saveState();
+                    term.writeln("[life-os] State saved successfully");
+                    setTimeout(showPrompt, 1000);
+                    break;
+                case 'reset':
+                    executeReset();
+                    break;
+                case 'debug':
+                    term.writeln(`[life-os] Debug info:`);
+                    term.writeln(`[life-os] gameState: ${gameState}`);
+                    term.writeln(`[life-os] commandHistory length: ${commandHistory.length}`);
+                    setTimeout(showPrompt, 1000);
+                    break;
+                case '':
+                    showPrompt();
+                    break;
+                default:
+                    term.writeln(`[life-os] command not found: ${firstWord}`);
+                    term.writeln("[life-os] type 'help' for available commands");
+                    setTimeout(showPrompt, 1000);
+            }
+            
+            saveState(); // Auto-save after each command
+        }
+        
+        // Tab completion
+        function getTabCompletion(input) {
+            const parts = input.trim().split(/\s+/);
+            
+            if (parts.length === 1) {
+                // Complete command names
+                const matches = availableCommands.filter(cmd => cmd.startsWith(input.toLowerCase()));
+                return matches.length === 1 ? matches[0] : matches;
+            } else if (parts.length === 2 && parts[0].toLowerCase() === 'cat') {
+                // Complete filenames for cat command
+                const availableFiles = ['life_goals.txt', 'dreams.log'];
+                const filename = parts[1].toLowerCase();
+                const matches = availableFiles.filter(file => file.startsWith(filename));
+                
+                if (matches.length === 1) {
+                    return `cat ${matches[0]}`;
+                } else if (matches.length > 1) {
+                    return matches;
+                }
+            }
+            
+            return [];
+        }
+        
+        // Easter egg commands
+        function showEasterEggLS() {
+            const lsLines = [
+                "",
+                "[life-os] /home/user:",
+                "drwxr-xr-x  2 user user 4096 Aug 19 09:15 ./",
+                "drwxr-xr-x  3 root root 4096 Aug 19 09:12 ../",
+                "-rw-r--r--  1 user user  220 Aug 19 09:12 .bash_logout",
+                "-rw-r--r--  1 user user 3526 Aug 19 09:12 .bashrc",
+                "-rw-r--r--  1 user user  807 Aug 19 09:12 .profile",
+                "-rw-r--r--  1 user user 1024 Aug 19 09:14 life_goals.txt",
+                "-rw-r--r--  1 user user  512 Aug 19 09:13 dreams.log",
+                "-rwxr-xr-x  1 user user 2048 Aug 19 09:15 reinvent_self.sh",
+                ""
+            ];
+            displayContent(lsLines, showPrompt);
+        }
+        
+        function showEasterEggPS() {
+            const psLines = [
+                "",
+                "[life-os] USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND",
+                "[life-os] user      1024  2.1  1.2  15680  4532 pts/0    S    09:12   0:01 anxiety_daemon",
+                "[life-os] user      1037 87.3  5.4  32144 19876 pts/0    R    09:12   2:15 procrastination",
+                "[life-os] user      1090  0.8  0.3   8192  1024 pts/0    S    09:13   0:00 sleep_scheduler",
+                "[life-os] user      2077  45.2  8.1  65536 29684 pts/0    D    09:14   1:23 burnout_process",
+                "[life-os] user      3001  0.1  0.2   4096   512 pts/0    S    09:15   0:00 hope_service",
+                ""
+            ];
+            displayContent(psLines, showPrompt);
+        }
+        
+        function showEasterEggTop() {
+            const topLines = [
+                "",
+                "[life-os] Tasks: 42 total,   1 running,  35 sleeping,   6 stopped",
+                "[life-os] %Cpu(s): 87.3 us,  2.1 sy,  0.0 ni, 10.6 id,  0.0 wa",
+                "[life-os] Memory: 8192M total, 6144M used, 2048M free",
+                "",
+                "[life-os]   PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND",
+                "[life-os]  1037 user      20   0   32144  19876   4096 R  37.3  5.4   2:15.23 procrastination",
+                "[life-os]  2087 user      20   0    5236  29684   8192 D  25.2  8.1   1:23.45 context_switching",
+                "[life-os]  2077 user      20   0   65536  29684   8192 D  15.6  8.1   1:23.45 burnout_process",
+                "[life-os]  1024 user      20   0   15680   4532   2048 S  12.1  1.2   0:01.12 anxiety_daemon",
+                "[life-os]  1090 user      20   0    8192   1024    512 S   0.9  0.3   0:00.34 sleep_scheduler",
+                "[life-os]  3001 user      20   0    4096    512    256 S   0.1  0.2   0:00.05 hope_service",
+                ""
+            ];
+            displayContent(topLines, showPrompt);
+        }
+        
+        function handleCatCommand(fullCommand) {
+            const parts = fullCommand.trim().split(/\s+/);
+            if (parts.length === 1) {
+                // Just 'cat' without filename
+                const catHelpLines = [
+                    "",
+                    "[life-os] cat: missing file operand",
+                    "[life-os] Usage: cat <filename>",
+                    "[life-os] Available files:",
+                    "[life-os]   life_goals.txt",
+                    "[life-os]   dreams.log",
+                    ""
+                ];
+                displayContent(catHelpLines, showPrompt);
+                return;
+            }
+            
+            const filename = parts[1];
+            
+            if (filename === 'life_goals.txt') {
+                showLifeGoals();
+            } else if (filename === 'dreams.log') {
+                showDreamsLog();
+            } else {
+                const errorLines = [
+                    "",
+                    `[life-os] cat: ${filename}: No such file or directory`,
+                    "[life-os] Available files: life_goals.txt, dreams.log",
+                    ""
+                ];
+                displayContent(errorLines, showPrompt);
+            }
+        }
+        
+        function showLifeGoals() {
+            const lifeGoalsLines = [
+                "",
+                "[life-os] === life_goals.txt ===",
+                "",
+                "🎯 Become a Tech Billionaire by Inventing the Next Killer App",
+                "   Status: Pending (currently debugging hello world)",
+                "",
+                "💼 Land a Dream Job at a FAANG Company", 
+                "   Status: Applied to 247 positions, got 3 rejections",
+                "",
+                "🎙️ Start a Successful Podcast Empire",
+                "   Status: Recorded intro 47 times, still sounds awkward",
+                "",
+                "✈️ Travel the World Solo",
+                "   Status: Googled flight prices, closed laptop in despair",
+                "",
+                "[life-os] Last modified: 3 years ago (optimism detected)",
+                ""
+            ];
+            displayContent(lifeGoalsLines, showPrompt);
+        }
+        
+        function showDreamsLog() {
+            const dreamsLogLines = [
+                "",
+                "[life-os] === dreams.log ===",
+                "",
+                "[2025-08-15 03:42] 🚀 KILLER APP DREAM:",
+                "Invented an app that kills batteries instead of being killer.",
+                "Now I'm billions in debt to my coffee habit while debugging",
+                "in a basement. The app's only feature: draining phone batteries",
+                "faster than TikTok. Investors loved the 'disruption'.",
+                "",
+                "[2025-07-22 02:15] 💻 FAANG DREAM:",
+                "Landed interviews where I fanged up every coding question.",
+                "Asked to reverse a binary tree, accidentally reversed my career.",
+                "Now FAANG-less and coding for a startup called 'Mom's Garage Inc.'",
+                "Salary: unlimited pizza rolls and basement wifi.",
+                "",
+                "[2025-06-10 04:30] 🎙️ PODCAST EMPIRE DREAM:",
+                "Started a podcast with zero listeners, including myself",
+                "after episode one. Turns out talking to yourself for an hour",
+                "about productivity while procrastinating isn't 'meta' content.",
+                "Even my mom unsubscribed.",
+                "",
+                "[2025-05-03 01:20] ✈️ WORLD TRAVEL DREAM:",
+                "Imagined backpacking through exotic lands, making lifelong friends.",
+                "Reality: Got lost in my own city trying to navigate public transit,",
+                "ended up at a laundromat instead of the airport.",
+                "Passport remains pristine and judgmental.",
+                "",
+                "[life-os] Total entries: 247 | Reality-to-dream ratio: 0.001%",
+                ""
+            ];
+            displayContent(dreamsLogLines, showPrompt);
+        }
+        
+        function executeReset() {
+            gameState = 'resetting';
+            const resetLines = [
+                "",
+                "[life-os] === SYSTEM RESET INITIATED ===",
+                "[life-os] Clearing all saved state...",
+                "[life-os] Resetting system health metrics...",
+                "[life-os] Purging command history...",
+                "[life-os] Reinitializing kernel modules...",
+                "",
+                "[life-os] Reset complete. Restarting article...",
+                ""
+            ];
+            
+            displayContent(resetLines, () => {
+                resetState();
+                term.clear();
+                
+                // Restart the article from beginning
+                displayContent(narrativeContent.intro, () => {
+                    gameState = 'ready';
+                    showPrompt();
+                });
+            });
+        }
+
+        term.onKey(e =>
+        {
+            const key = e.key;
+            const keyCode = e.domEvent.keyCode;
+
+            if (key === '\r')
+            {
+                handleCommand(currentInput);
+                currentInput = '';
+            } else if (key === '\t')
+            { // Tab completion
+                e.domEvent.preventDefault();
+                if (currentInput.trim()) {
+                    const completion = getTabCompletion(currentInput.trim());
+                    if (typeof completion === 'string') {
+                        // Clear current input
+                        for (let i = 0; i < currentInput.length; i++) {
+                            term.write('\b \b');
+                        }
+                        currentInput = completion;
+                        term.write(completion);
+                    } else if (completion.length > 1) {
+                        term.writeln('');
+                        term.writeln('[life-os] Available completions: ' + completion.join(', '));
+                        term.write('> ' + currentInput);
+                    }
+                }
+            } else if (keyCode === 38)
+            { // Up arrow - command history
+                e.domEvent.preventDefault();
+                if (commandHistory.length > 0) {
+                    if (historyIndex === -1) {
+                        historyIndex = commandHistory.length - 1;
+                    } else if (historyIndex > 0) {
+                        historyIndex--;
+                    }
+                    
+                    // Clear current input
+                    for (let i = 0; i < currentInput.length; i++) {
+                        term.write('\b \b');
+                    }
+                    
+                    currentInput = commandHistory[historyIndex] || '';
+                    term.write(currentInput);
+                }
+            } else if (keyCode === 40)
+            { // Down arrow - command history
+                e.domEvent.preventDefault();
+                if (historyIndex !== -1) {
+                    if (historyIndex < commandHistory.length - 1) {
+                        historyIndex++;
+                        // Clear current input
+                        for (let i = 0; i < currentInput.length; i++) {
+                            term.write('\b \b');
+                        }
+                        currentInput = commandHistory[historyIndex] || '';
+                        term.write(currentInput);
+                    } else {
+                        // Clear current input
+                        for (let i = 0; i < currentInput.length; i++) {
+                            term.write('\b \b');
+                        }
+                        currentInput = '';
+                        historyIndex = -1;
+                    }
+                }
+            } else if (key === '\u007f')
+            { // backspace
+                if (currentInput.length > 0)
+                {
+                    currentInput = currentInput.slice(0, -1);
+                    term.write('\b \b');
+                }
+            } else if (key >= ' ')
+            { // printable characters
+                currentInput += key;
+                term.write(key);
+            }
+        });
+
+        // Load saved state and start
+        loadState();
+        
+        // Initial mobile setup
+        handleViewportChange();
+        
+        // Start the experience
+        if (gameState === 'intro') {
+            displayContent(narrativeContent.intro, () =>
+            {
+                gameState = 'ready';
+                showPrompt();
+            });
+        } else {
+            // Resume from saved state
+            gameState = 'ready'; // Ensure we're in ready state
+            term.writeln("[life-os] === SESSION RESTORED ===");
+            term.writeln("[life-os] Welcome back! Type 'status' to check your system.");
+            showPrompt();
+        }
+    </script>
+</body>
+
+</html>
