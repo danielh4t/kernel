@@ -14,7 +14,7 @@
             height: 100vh;
             background: #000;
             color: #0f0;
-            font-family: 'Fira Code', monospace;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -46,8 +46,7 @@
             }
             
             .xterm {
-                font-size: 16px !important;
-                line-height: 1.4 !important;
+                font-size: 12px !important;
             }
             
             .xterm .xterm-viewport {
@@ -66,8 +65,8 @@
             }
             
             .xterm {
-                font-size: 14px !important;
-                line-height: 1.4 !important;
+                font-size: 11px !important;
+                line-height: 1.2 !important;
             }
         }
         
@@ -117,8 +116,8 @@
             cursorBlink: true, 
             theme: { background: '#000000', foreground: '#00ff00' },
             allowTransparency: true,
-            fontSize: window.innerWidth <= 768 ? (window.innerWidth <= 480 ? 14 : 16) : 14,
-            lineHeight: 1.4,
+            fontSize: window.innerWidth <= 768 ? (window.innerWidth <= 480 ? 11 : 12) : 14,
+            lineHeight: window.innerWidth <= 480 ? 1.2 : 1.4,
             scrollback: 1000,
             disableStdin: false
         });
@@ -230,8 +229,8 @@
             if (window.innerWidth <= 768) {
                 // Force resize on mobile
                 setTimeout(() => {
-                    term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 9 : 10)), 
-                               Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 20 : 24)));
+                    term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 7 : 8)), 
+                               Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 14 : 16)));
                 }, 100);
             }
         }
@@ -420,13 +419,15 @@
                     });
                 } else
                 {
-                    // Instant display for regular text paragraphs - keep green color
+                    // Instant display for regular text paragraphs - white color
                     if (currentLine.trim() === '')
                     {
                         term.writeln('');
                     } else
                     {
+                        term.write('\x1b[37m'); // Set to white
                         term.writeln(currentLine);
+                        term.write('\x1b[32m'); // Reset to green
                     }
                     lineIndex++;
                     setTimeout(showNextLine, 100);
@@ -448,7 +449,7 @@
                     return;
                 }
 
-                // Use bright green for [life-os] lines
+                term.write('\x1b[32m'); // Ensure green for [life-os] lines
                 term.write(line[charIndex]);
                 charIndex++;
                 setTimeout(typeNextChar, 50); // Slower typing speed
@@ -610,7 +611,9 @@
                         displayContent(finalLines, () =>
                         {
                             gameState = 'ready';
+                            term.write('\x1b[37m');
                             term.writeln("Type 'status' to see your improved system, or 'help' for options.");
+                            term.write('\x1b[32m');
                             showPrompt();
                         });
                         return;
