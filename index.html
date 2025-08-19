@@ -123,36 +123,89 @@
         });
         term.open(document.getElementById('terminal'));
         
-        // Enhanced mobile keyboard support
+        // Create hidden input for mobile
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'text';
+        hiddenInput.style.position = 'absolute';
+        hiddenInput.style.left = '-9999px';
+        hiddenInput.style.opacity = '0';
+        hiddenInput.style.pointerEvents = 'none';
+        hiddenInput.setAttribute('autocomplete', 'off');
+        hiddenInput.setAttribute('autocorrect', 'off');
+        hiddenInput.setAttribute('autocapitalize', 'off');
+        hiddenInput.setAttribute('spellcheck', 'false');
+        document.body.appendChild(hiddenInput);
+        
+        // Mobile keyboard support using hidden input
+        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                      (window.innerWidth <= 768 && 'ontouchstart' in window);
+        let mobileInputValue = '';
+        
+        console.log('Mobile detected:', isMobile);
+        
         function setupMobileKeyboard() {
             const terminalElement = document.querySelector('.xterm');
-            const textareaElement = document.querySelector('.xterm-helper-textarea');
             
-            if (terminalElement) {
-                terminalElement.setAttribute('tabindex', '0');
-                
-                // Auto-focus on mobile when terminal is tapped
+            if (terminalElement && isMobile) {
+                // Focus hidden input when terminal is tapped
                 terminalElement.addEventListener('touchstart', function(e) {
-                    if (window.innerWidth <= 768) {
-                        // Ensure the textarea helper is focused to trigger keyboard
-                        if (textareaElement) {
-                            textareaElement.focus();
-                        } else {
-                            terminalElement.focus();
+                    console.log('Terminal touched, focusing hidden input');
+                    e.preventDefault();
+                    hiddenInput.focus();
+                }, { passive: false });
+                
+                // Handle input from hidden field
+                hiddenInput.addEventListener('input', function(e) {
+                    const newValue = e.target.value;
+                    console.log('Mobile input:', newValue, 'Previous:', mobileInputValue);
+                    
+                    if (newValue.length > mobileInputValue.length) {
+                        // Characters added
+                        const addedChars = newValue.slice(mobileInputValue.length);
+                        for (let char of addedChars) {
+                            if (char >= ' ') { // printable characters
+                                currentInput += char;
+                                term.write(char);
+                            }
+                        }
+                    } else if (newValue.length < mobileInputValue.length) {
+                        // Characters removed (backspace)
+                        const removedCount = mobileInputValue.length - newValue.length;
+                        for (let i = 0; i < removedCount; i++) {
+                            if (currentInput.length > 0) {
+                                currentInput = currentInput.slice(0, -1);
+                                term.write('\b \b');
+                            }
                         }
                     }
-                }, { passive: true });
+                    
+                    mobileInputValue = newValue;
+                });
                 
-                // Auto-focus on page load for mobile
-                if (window.innerWidth <= 768 && 'ontouchstart' in window) {
-                    setTimeout(() => {
-                        if (textareaElement) {
-                            textareaElement.focus();
-                        } else {
-                            terminalElement.focus();
-                        }
-                    }, 500);
-                }
+                // Handle enter key
+                hiddenInput.addEventListener('keydown', function(e) {
+                    console.log('Mobile keydown:', e.key);
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        console.log('Processing command:', currentInput);
+                        handleCommand(currentInput);
+                        currentInput = '';
+                        mobileInputValue = '';
+                        hiddenInput.value = '';
+                    }
+                });
+                
+                // Keep focus on hidden input for mobile
+                hiddenInput.addEventListener('blur', function() {
+                    if (isMobile) {
+                        setTimeout(() => hiddenInput.focus(), 100);
+                    }
+                });
+                
+                // Auto-focus on mobile after a delay to ensure DOM is ready
+                setTimeout(() => {
+                    hiddenInput.focus();
+                }, 1000);
             }
         }
         
@@ -877,8 +930,12 @@
             });
         }
 
+        // Desktop keyboard input handling
         term.onKey(e =>
         {
+            // Skip if mobile input is active
+            if (isMobile) return;
+            
             const key = e.key;
             const keyCode = e.domEvent.keyCode;
 
