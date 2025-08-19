@@ -61,7 +61,7 @@
         
         @media (max-width: 480px) {
             #terminal {
-                padding: 4px 4px 60px 4px; /* More padding for mobile input */
+                padding: 4px 4px 30px 4px;
             }
             
             .xterm {
@@ -70,33 +70,13 @@
             }
         }
         
-        /* Mobile input fallback */
-        #mobile-input {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            right: 10px;
-            height: 40px;
-            background: rgba(0, 255, 0, 0.1);
-            border: 1px solid #00ff00;
-            color: #00ff00;
-            font-family: 'Fira Code', monospace;
-            font-size: 14px;
-            padding: 8px;
-            border-radius: 4px;
-            display: none;
-            z-index: 1000;
-        }
-        
-        #mobile-input:focus {
-            outline: 2px solid #00ff00;
-        }
-        
+        /* Mobile keyboard viewport adjustment */
         @media (max-width: 768px) {
-            #mobile-input {
-                display: block;
+            .keyboard-visible {
+                padding-bottom: 300px !important; /* Space for keyboard */
             }
         }
+        
         
 
         .xterm {
@@ -129,7 +109,6 @@
 
 <body>
     <div id="terminal" role="application" aria-label="Life Kernel Terminal - Interactive Article"></div>
-    <input type="text" id="mobile-input" placeholder="Type commands here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <div class="sr-only" aria-live="polite" id="screen-reader-output"></div>
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
     <script>
@@ -144,30 +123,37 @@
         });
         term.open(document.getElementById('terminal'));
         
-        // Mobile keyboard support - ensure the terminal can receive focus
-        const terminalElement = document.querySelector('.xterm');
-        if (terminalElement) {
-            terminalElement.setAttribute('tabindex', '0');
-            terminalElement.setAttribute('role', 'textbox');
-            terminalElement.setAttribute('aria-label', 'Terminal input');
+        // Enhanced mobile keyboard support
+        function setupMobileKeyboard() {
+            const terminalElement = document.querySelector('.xterm');
+            const textareaElement = document.querySelector('.xterm-helper-textarea');
             
-            // Focus the terminal on mobile when tapped
-            terminalElement.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                terminalElement.focus();
-                // Trigger virtual keyboard on mobile
-                if ('ontouchstart' in window) {
-                    terminalElement.click();
+            if (terminalElement) {
+                terminalElement.setAttribute('tabindex', '0');
+                
+                // Auto-focus on mobile when terminal is tapped
+                terminalElement.addEventListener('touchstart', function(e) {
+                    if (window.innerWidth <= 768) {
+                        // Ensure the textarea helper is focused to trigger keyboard
+                        if (textareaElement) {
+                            textareaElement.focus();
+                        } else {
+                            terminalElement.focus();
+                        }
+                    }
+                }, { passive: true });
+                
+                // Auto-focus on page load for mobile
+                if (window.innerWidth <= 768 && 'ontouchstart' in window) {
+                    setTimeout(() => {
+                        if (textareaElement) {
+                            textareaElement.focus();
+                        } else {
+                            terminalElement.focus();
+                        }
+                    }, 500);
                 }
-            });
-            
-            // Keep focus on the terminal
-            terminalElement.addEventListener('blur', function() {
-                // Re-focus after a short delay on mobile
-                if (window.innerWidth <= 768) {
-                    setTimeout(() => terminalElement.focus(), 100);
-                }
-            });
+            }
         }
         
         // Mobile viewport handling
@@ -178,6 +164,47 @@
                     term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 7 : 8)), 
                                Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 14 : 16)));
                 }, 100);
+            }
+        }
+        
+        // Handle mobile keyboard visibility
+        function handleKeyboardVisibility() {
+            if (window.innerWidth <= 768) {
+                const initialViewportHeight = window.innerHeight;
+                
+                // Detect keyboard show/hide by viewport height change
+                window.addEventListener('resize', function() {
+                    const currentHeight = window.innerHeight;
+                    const heightDifference = initialViewportHeight - currentHeight;
+                    
+                    const terminalDiv = document.getElementById('terminal');
+                    if (heightDifference > 150) { // Keyboard is likely visible
+                        terminalDiv.classList.add('keyboard-visible');
+                        // Scroll to bottom to show current input
+                        setTimeout(() => {
+                            term.scrollToBottom();
+                        }, 100);
+                    } else { // Keyboard is likely hidden
+                        terminalDiv.classList.remove('keyboard-visible');
+                    }
+                });
+                
+                // Also handle visual viewport API if available
+                if (window.visualViewport) {
+                    window.visualViewport.addEventListener('resize', function() {
+                        const heightDifference = window.innerHeight - window.visualViewport.height;
+                        const terminalDiv = document.getElementById('terminal');
+                        
+                        if (heightDifference > 150) {
+                            terminalDiv.classList.add('keyboard-visible');
+                            setTimeout(() => {
+                                term.scrollToBottom();
+                            }, 100);
+                        } else {
+                            terminalDiv.classList.remove('keyboard-visible');
+                        }
+                    });
+                }
             }
         }
         
@@ -204,8 +231,8 @@
         }, { passive: false });
         
         document.addEventListener('touchmove', function(e) {
-            // Only prevent scrolling, don't interfere with input elements
-            if (!e.target.closest('.xterm') && !e.target.closest('input')) {
+            // Allow scrolling within the terminal, prevent page scroll
+            if (!e.target.closest('.xterm')) {
                 e.preventDefault();
             }
         }, { passive: false });
@@ -933,39 +960,11 @@
         // Load saved state and start
         loadState();
         
-        // Mobile input handling
-        const mobileInput = document.getElementById('mobile-input');
-        if (mobileInput) {
-            mobileInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const command = mobileInput.value;
-                    mobileInput.value = '';
-                    
-                    // Display the command in terminal
-                    term.write('\r\n> ' + command);
-                    
-                    // Process the command
-                    handleCommand(command);
-                }
-            });
-            
-            // Show mobile input as you type in terminal for visual feedback
-            mobileInput.addEventListener('input', function(e) {
-                const value = e.target.value;
-                if (window.innerWidth <= 768) { // Only on mobile
-                    // Clear current input display on terminal
-                    for (let i = 0; i < currentInput.length; i++) {
-                        term.write('\b \b');
-                    }
-                    currentInput = value;
-                    term.write(value);
-                }
-            });
-        }
         
         // Initial mobile setup
         handleViewportChange();
+        setupMobileKeyboard();
+        handleKeyboardVisibility();
         
         // Start the experience
         if (gameState === 'intro') {
