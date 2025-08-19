@@ -46,7 +46,8 @@
             }
             
             .xterm {
-                font-size: 12px !important;
+                font-size: 16px !important;
+                line-height: 1.4 !important;
             }
             
             .xterm .xterm-viewport {
@@ -65,8 +66,8 @@
             }
             
             .xterm {
-                font-size: 11px !important;
-                line-height: 1.2 !important;
+                font-size: 14px !important;
+                line-height: 1.4 !important;
             }
         }
         
@@ -116,8 +117,8 @@
             cursorBlink: true, 
             theme: { background: '#000000', foreground: '#00ff00' },
             allowTransparency: true,
-            fontSize: window.innerWidth <= 768 ? (window.innerWidth <= 480 ? 11 : 12) : 14,
-            lineHeight: window.innerWidth <= 480 ? 1.2 : 1.4,
+            fontSize: window.innerWidth <= 768 ? (window.innerWidth <= 480 ? 14 : 16) : 14,
+            lineHeight: 1.4,
             scrollback: 1000,
             disableStdin: false
         });
@@ -147,12 +148,27 @@
             const terminalElement = document.querySelector('.xterm');
             
             if (terminalElement && isMobile) {
-                // Focus hidden input when terminal is tapped
+                // Focus hidden input when terminal is tapped (single tap)
                 terminalElement.addEventListener('touchstart', function(e) {
                     console.log('Terminal touched, focusing hidden input');
                     e.preventDefault();
                     hiddenInput.focus();
                 }, { passive: false });
+                
+                // Also handle click events for single tap
+                terminalElement.addEventListener('click', function(e) {
+                    console.log('Terminal clicked, focusing hidden input');
+                    e.preventDefault();
+                    hiddenInput.focus();
+                });
+                
+                // Handle taps anywhere on the screen for mobile
+                document.addEventListener('touchstart', function(e) {
+                    if (isMobile) {
+                        console.log('Screen touched, focusing hidden input');
+                        hiddenInput.focus();
+                    }
+                }, { passive: true });
                 
                 // Handle input from hidden field
                 hiddenInput.addEventListener('input', function(e) {
@@ -214,8 +230,8 @@
             if (window.innerWidth <= 768) {
                 // Force resize on mobile
                 setTimeout(() => {
-                    term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 7 : 8)), 
-                               Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 14 : 16)));
+                    term.resize(Math.floor(window.innerWidth / (window.innerWidth <= 480 ? 9 : 10)), 
+                               Math.floor(window.innerHeight / (window.innerWidth <= 480 ? 20 : 24)));
                 }, 100);
             }
         }
@@ -404,15 +420,13 @@
                     });
                 } else
                 {
-                    // Instant display for regular text paragraphs - white color
+                    // Instant display for regular text paragraphs - keep green color
                     if (currentLine.trim() === '')
                     {
                         term.writeln('');
                     } else
                     {
-                        term.write('\x1b[37m'); // Set to white
                         term.writeln(currentLine);
-                        term.write('\x1b[32m'); // Reset to green
                     }
                     lineIndex++;
                     setTimeout(showNextLine, 100);
@@ -434,7 +448,7 @@
                     return;
                 }
 
-                term.write('\x1b[32m'); // Ensure green for [life-os] lines
+                // Use bright green for [life-os] lines
                 term.write(line[charIndex]);
                 charIndex++;
                 setTimeout(typeNextChar, 50); // Slower typing speed
@@ -596,9 +610,7 @@
                         displayContent(finalLines, () =>
                         {
                             gameState = 'ready';
-                            term.write('\x1b[37m');
                             term.writeln("Type 'status' to see your improved system, or 'help' for options.");
-                            term.write('\x1b[32m');
                             showPrompt();
                         });
                         return;
