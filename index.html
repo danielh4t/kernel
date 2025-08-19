@@ -61,12 +61,40 @@
         
         @media (max-width: 480px) {
             #terminal {
-                padding: 4px 4px 30px 4px;
+                padding: 4px 4px 60px 4px; /* More padding for mobile input */
             }
             
             .xterm {
                 font-size: 11px !important;
                 line-height: 1.2 !important;
+            }
+        }
+        
+        /* Mobile input fallback */
+        #mobile-input {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 40px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        #mobile-input:focus {
+            outline: 2px solid #00ff00;
+        }
+        
+        @media (max-width: 768px) {
+            #mobile-input {
+                display: block;
             }
         }
         
@@ -101,6 +129,7 @@
 
 <body>
     <div id="terminal" role="application" aria-label="Life Kernel Terminal - Interactive Article"></div>
+    <input type="text" id="mobile-input" placeholder="Type commands here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <div class="sr-only" aria-live="polite" id="screen-reader-output"></div>
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
     <script>
@@ -114,6 +143,32 @@
             disableStdin: false
         });
         term.open(document.getElementById('terminal'));
+        
+        // Mobile keyboard support - ensure the terminal can receive focus
+        const terminalElement = document.querySelector('.xterm');
+        if (terminalElement) {
+            terminalElement.setAttribute('tabindex', '0');
+            terminalElement.setAttribute('role', 'textbox');
+            terminalElement.setAttribute('aria-label', 'Terminal input');
+            
+            // Focus the terminal on mobile when tapped
+            terminalElement.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                terminalElement.focus();
+                // Trigger virtual keyboard on mobile
+                if ('ontouchstart' in window) {
+                    terminalElement.click();
+                }
+            });
+            
+            // Keep focus on the terminal
+            terminalElement.addEventListener('blur', function() {
+                // Re-focus after a short delay on mobile
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => terminalElement.focus(), 100);
+                }
+            });
+        }
         
         // Mobile viewport handling
         function handleViewportChange() {
@@ -149,7 +204,10 @@
         }, { passive: false });
         
         document.addEventListener('touchmove', function(e) {
-            e.preventDefault();
+            // Only prevent scrolling, don't interfere with input elements
+            if (!e.target.closest('.xterm') && !e.target.closest('input')) {
+                e.preventDefault();
+            }
         }, { passive: false });
 
         let currentInput = '';
@@ -874,6 +932,37 @@
 
         // Load saved state and start
         loadState();
+        
+        // Mobile input handling
+        const mobileInput = document.getElementById('mobile-input');
+        if (mobileInput) {
+            mobileInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const command = mobileInput.value;
+                    mobileInput.value = '';
+                    
+                    // Display the command in terminal
+                    term.write('\r\n> ' + command);
+                    
+                    // Process the command
+                    handleCommand(command);
+                }
+            });
+            
+            // Show mobile input as you type in terminal for visual feedback
+            mobileInput.addEventListener('input', function(e) {
+                const value = e.target.value;
+                if (window.innerWidth <= 768) { // Only on mobile
+                    // Clear current input display on terminal
+                    for (let i = 0; i < currentInput.length; i++) {
+                        term.write('\b \b');
+                    }
+                    currentInput = value;
+                    term.write(value);
+                }
+            });
+        }
         
         // Initial mobile setup
         handleViewportChange();
